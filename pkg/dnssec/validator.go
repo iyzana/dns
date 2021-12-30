@@ -27,7 +27,7 @@ func (v *Validator) Validate(ctx context.Context,
 		return nil, fmt.Errorf("cannot dial DNS server: %w", err)
 	}
 
-	rrsig, rrset, err := FetchRRSetWithRRSig(v.client, conn, zone, t)
+	rrsig, rrset, err := fetchRRSetWithRRSig(v.client, conn, zone, t)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)

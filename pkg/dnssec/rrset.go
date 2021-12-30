@@ -4,9 +4,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-type FetchFunc func(request *dns.Msg) (response *dns.Msg, err error)
-
-func FetchRRSetWithRRSig(client *dns.Client, conn *dns.Conn,
+func fetchRRSetWithRRSig(client *dns.Client, conn *dns.Conn,
 	zone string, recordType uint16) (rrsig *dns.RRSIG,
 	rrset []dns.RR, err error) {
 	request := newRequestWithRRSig(zone, recordType)

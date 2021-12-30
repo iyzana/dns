@@ -151,7 +151,7 @@ func queryDNSKey(ctx context.Context, dial DialFunc, client *dns.Client,
 	}
 	defer conn.Close()
 
-	rrsig, rrset, err = FetchRRSetWithRRSig(
+	rrsig, rrset, err = fetchRRSetWithRRSig(
 		client, conn, zone, dns.TypeDNSKEY)
 	switch {
 	case err != nil:
@@ -172,7 +172,7 @@ func queryDS(ctx context.Context, dial DialFunc, client *dns.Client,
 	}
 	defer conn.Close()
 
-	rrsig, rrset, err = FetchRRSetWithRRSig(
+	rrsig, rrset, err = fetchRRSetWithRRSig(
 		client, conn, zone, dns.TypeDS)
 	switch {
 	case err != nil:
