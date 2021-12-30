@@ -14,16 +14,27 @@ import (
 func Test_Validate(t *testing.T) {
 	t.Parallel()
 
+	const validZone = "qqq.ninja."
+	request := new(dns.Msg).SetQuestion(validZone, dns.TypeA)
+	response, _, err := new(dns.Client).Exchange(request, "1.1.1.1:53")
+	require.NoError(t, err)
+	validZoneRRSet := response.Answer
+	for i := range validZoneRRSet {
+		validZoneRRSet[i].Header().Ttl = 0
+	}
+
 	testCases := map[string]struct {
 		zone        string
 		dnsType     uint16
 		settings    Settings
+		rrset       []dns.RR
 		errWrapped  error
 		errMsgRegex string
 	}{
 		"valid DNSSEC": {
 			zone:    "qqq.ninja.",
 			dnsType: dns.TypeA,
+			rrset:   validZoneRRSet,
 		},
 		"no DNSSEC": {
 			zone:       "github.com.",
@@ -31,15 +42,16 @@ func Test_Validate(t *testing.T) {
 			errWrapped: ErrRecordNotFound,
 			errMsgRegex: "cannot create delegation chain: " +
 				"cannot query delegation for github\\.com\\.: " +
-				"cannot fetch (DNSKEY|DS) records: record not found",
+				"cannot fetch (DNSKEY|DS) records: " +
+				"record not found",
 		},
 		"bad DNSSEC": {
 			zone:       "www.dnssec-failed.org.",
 			dnsType:    dns.TypeA,
 			errWrapped: ErrRecordNotFound,
 			errMsgRegex: "cannot create delegation chain: " +
-				"cannot query delegation for www\\.dnssec-failed\\.org\\.: " +
-				"cannot fetch DNSKEY records: " +
+				"cannot query delegation for (www\\.|)dnssec-failed\\.org\\.: " +
+				"cannot fetch (DNSKEY|DS) records: " +
 				"record not found",
 		},
 	}
@@ -61,8 +73,14 @@ func Test_Validate(t *testing.T) {
 
 			validator := NewValidator(testCase.settings)
 
-			err = validator.Validate(ctx, testCase.zone, testCase.dnsType)
+			rrset, err := validator.Validate(ctx, testCase.zone, testCase.dnsType)
 
+			// Remove TTL fields from rrset
+			for i := range rrset {
+				rrset[i].Header().Ttl = 0
+			}
+
+			assert.Equal(t, testCase.rrset, rrset)
 			assert.ErrorIs(t, err, testCase.errWrapped)
 			if testCase.errWrapped != nil {
 				assert.Regexp(t, errMsgRegex, err.Error())
@@ -78,6 +96,6 @@ func Benchmark_Validate(b *testing.B) {
 	validator := NewValidator(Settings{})
 
 	for i := 0; i < b.N; i++ {
-		_ = validator.Validate(ctx, zone, dnsType)
+		_, _ = validator.Validate(ctx, zone, dnsType)
 	}
 }

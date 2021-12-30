@@ -21,32 +21,32 @@ func NewValidator(settings Settings) *Validator {
 }
 
 func (v *Validator) Validate(ctx context.Context,
-	zone string, t uint16) (err error) {
+	zone string, t uint16) (rrset []dns.RR, err error) {
 	conn, err := v.dial(ctx)
 	if err != nil {
-		return fmt.Errorf("cannot dial DNS server: %w", err)
+		return nil, fmt.Errorf("cannot dial DNS server: %w", err)
 	}
 
 	rrsig, rrset, err := FetchRRSetWithRRSig(v.client, conn, zone, t)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)
+		return nil, fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)
 	}
 
 	err = conn.Close()
 	if err != nil {
-		return fmt.Errorf("cannot close connection: %w", err)
+		return nil, fmt.Errorf("cannot close connection: %w", err)
 	}
 
 	delegationChain, err := newDelegationChain(ctx, v.dial, v.client, zone)
 	if err != nil {
-		return fmt.Errorf("cannot create delegation chain: %w", err)
+		return nil, fmt.Errorf("cannot create delegation chain: %w", err)
 	}
 
 	err = delegationChain.verify(rrsig, rrset)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return rrset, nil
 }
