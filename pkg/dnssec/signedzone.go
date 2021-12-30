@@ -16,33 +16,24 @@ type signedZone struct {
 	keyTagToDNSKey map[uint16]*dns.DNSKEY
 }
 
-func newSignedZone(zone string, dnsKeyRRSig, dsRRSig *dns.RRSIG,
-	dnsKeyRRSet, dsRRSet []dns.RR) *signedZone {
-	keyTagToDNSKey := make(map[uint16]*dns.DNSKEY, len(dnsKeyRRSet))
-	for _, rr := range dnsKeyRRSet {
+func dnsKeyRRSetToMap(rrset []dns.RR) (keyTagToDNSKey map[uint16]*dns.DNSKEY) {
+	keyTagToDNSKey = make(map[uint16]*dns.DNSKEY, len(rrset))
+	for _, rr := range rrset {
 		dnsKey := rr.(*dns.DNSKEY)
 		keyTagToDNSKey[dnsKey.KeyTag()] = dnsKey
 	}
-
-	return &signedZone{
-		zone:           zone,
-		dnsKeyRRSig:    dnsKeyRRSig,
-		dnsKeyRRSet:    dnsKeyRRSet,
-		dsRRSig:        dsRRSig,
-		dsRRSet:        dsRRSet,
-		keyTagToDNSKey: keyTagToDNSKey,
-	}
+	return keyTagToDNSKey
 }
 
 var (
-	ErrDNSKeyTagNotFound = errors.New("DNSKEY tag not found")
+	ErrDNSKeyNotFound = errors.New("DNS Key record not found")
 )
 
 func (sz *signedZone) verifyRRSIG(rrsig *dns.RRSIG, rrset []dns.RR) (err error) {
 	keyTag := rrsig.KeyTag
 	dnsKey, ok := sz.keyTagToDNSKey[keyTag]
 	if !ok {
-		return ErrDNSKeyTagNotFound
+		return ErrDNSKeyNotFound
 	}
 
 	return validateRRSet(rrset, rrsig, dnsKey)

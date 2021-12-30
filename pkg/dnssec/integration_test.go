@@ -2,44 +2,54 @@ package dnssec
 
 import (
 	"context"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Validate(t *testing.T) {
 	t.Parallel()
 
 	testCases := map[string]struct {
-		zone       string
-		dnsType    uint16
-		settings   Settings
-		errWrapped error
-		errMessage string
+		zone        string
+		dnsType     uint16
+		settings    Settings
+		errWrapped  error
+		errMsgRegex string
 	}{
 		"valid DNSSEC": {
 			zone:    "qqq.ninja.",
 			dnsType: dns.TypeA,
 		},
-		"bad DNSSEC": {
-			zone:    "github.com.",
-			dnsType: dns.TypeA,
+		"no DNSSEC": {
+			zone:       "github.com.",
+			dnsType:    dns.TypeA,
+			errWrapped: ErrRecordNotFound,
+			errMsgRegex: "cannot create delegation chain: " +
+				"cannot query delegation for github\\.com\\.: " +
+				"cannot fetch (DNSKEY|DS) records: record not found",
 		},
-		"DNS key not found": {
+		"bad DNSSEC": {
 			zone:       "www.dnssec-failed.org.",
 			dnsType:    dns.TypeA,
-			errWrapped: ErrDNSKeyNotFound,
-			errMessage: "cannot create delegation chain: " +
-				"cannot query delegation for www.dnssec-failed.org.: " +
-				"DNS Key record not found",
+			errWrapped: ErrRecordNotFound,
+			errMsgRegex: "cannot create delegation chain: " +
+				"cannot query delegation for www\\.dnssec-failed\\.org\\.: " +
+				"cannot fetch DNSKEY records: " +
+				"record not found",
 		},
 	}
 	for name, testCase := range testCases {
 		testCase := testCase
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
+			errMsgRegex, err := regexp.Compile(testCase.errMsgRegex)
+			require.NoError(t, err)
 
 			deadline, ok := t.Deadline()
 			if !ok {
@@ -51,11 +61,11 @@ func Test_Validate(t *testing.T) {
 
 			validator := NewValidator(testCase.settings)
 
-			err := validator.Validate(ctx, testCase.zone, testCase.dnsType)
+			err = validator.Validate(ctx, testCase.zone, testCase.dnsType)
 
 			assert.ErrorIs(t, err, testCase.errWrapped)
 			if testCase.errWrapped != nil {
-				assert.EqualError(t, err, testCase.errMessage)
+				assert.Regexp(t, errMsgRegex, err.Error())
 			}
 		})
 	}
@@ -70,6 +80,4 @@ func Benchmark_Validate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = validator.Validate(ctx, zone, dnsType)
 	}
-	// Benchmark_Validate-8   	      10	 121111130 ns/op	  151557 B/op	     602 allocs/op
-	// Benchmark_Validate-8   	      21	  66569610 ns/op	  155365 B/op	     654 allocs/op
 }

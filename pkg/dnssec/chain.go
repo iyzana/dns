@@ -62,61 +62,130 @@ func newDelegationChain(ctx context.Context, dial DialFunc,
 	return chain, nil
 }
 
-var (
-	ErrDNSKeyNotFound = errors.New("DNS Key record not found")
-	ErrDNSKeyNoRRSig  = errors.New("DNS Key record has no RRSIG")
-	ErrDSNotFound     = errors.New("DS record not found")
-	ErrDSNoRRSig      = errors.New("DS record has no RRSIG")
-)
-
 // queryDelegation obtains the DNSKEY records and the DS
 // records for a given zone. It does not query the
 // (non existent) DS record for the root zone.
 func queryDelegation(ctx context.Context, dial DialFunc,
-	client *dns.Client, zone string) (signedZone *signedZone, err error) {
-	conn, err := dial(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("cannot dial DNS server: %w", err)
-	}
-	defer conn.Close()
-
-	dnsKeyRRSig, dnsKeyRRSet, err := FetchRRSetWithRRSig(
-		client, conn, zone, dns.TypeDNSKEY)
-	switch {
-	case err != nil:
-		return nil, fmt.Errorf("cannot fetch DNS keys: %w", err)
-	case len(dnsKeyRRSet) == 0:
-		return nil, ErrDNSKeyNotFound
-	case dnsKeyRRSig == nil:
-		return nil, ErrDNSKeyNoRRSig
+	client *dns.Client, zone string) (sz *signedZone, err error) {
+	if zone == "." {
+		// Only query DNSKEY since root zone has no DS record.
+		rrsig, rrset, err := queryDNSKey(ctx, dial, client, zone)
+		if err != nil {
+			return nil, fmt.Errorf("cannot fetch DNSKEY records: %w", err)
+		}
+		return &signedZone{
+			zone:           zone,
+			dnsKeyRRSig:    rrsig,
+			dnsKeyRRSet:    rrset,
+			keyTagToDNSKey: dnsKeyRRSetToMap(rrset),
+		}, nil
 	}
 
-	// TODO async both requests together
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	var dsRRSig *dns.RRSIG
-	var dsRRSet []dns.RR
-	if zone != "." { // root zone has no DS record
-		dsRRSig, dsRRSet, err = FetchRRSetWithRRSig(client, conn, zone, dns.TypeDS)
-		switch {
-		case err != nil:
-			return nil, fmt.Errorf("cannot fetch DS records: %w", err)
-		case len(dsRRSet) == 0:
-			return nil, ErrDSNotFound
-		case dnsKeyRRSig == nil:
-			return nil, ErrDSNoRRSig
+	type result struct {
+		t     uint16
+		rrsig *dns.RRSIG
+		rrset []dns.RR
+		err   error
+	}
+	results := make(chan result)
+
+	go func(ctx context.Context, dial DialFunc, zone string, results chan<- result) {
+		result := result{t: dns.TypeDNSKEY}
+		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, dial, client, zone)
+		if result.err != nil {
+			result.err = fmt.Errorf("cannot fetch DNSKEY records: %w", result.err)
+		}
+		results <- result
+	}(ctx, dial, zone, results)
+
+	go func(ctx context.Context, dial DialFunc, zone string, results chan<- result) {
+		result := result{t: dns.TypeDS}
+		result.rrsig, result.rrset, result.err = queryDS(ctx, dial, client, zone)
+		if result.err != nil {
+			result.err = fmt.Errorf("cannot fetch DS records: %w", result.err)
+		}
+		results <- result
+	}(ctx, dial, zone, results)
+
+	sz = &signedZone{
+		zone: zone,
+	}
+	for i := 0; i < 2; i++ {
+		result := <-results
+		if result.err != nil {
+			if err == nil { // first error encountered
+				err = result.err
+				cancel()
+			}
+			continue
+		}
+		if result.t == dns.TypeDS {
+			sz.dsRRSig, sz.dsRRSet = result.rrsig, result.rrset
+		} else {
+			sz.dnsKeyRRSig, sz.dnsKeyRRSet = result.rrsig, result.rrset
+			sz.keyTagToDNSKey = dnsKeyRRSetToMap(result.rrset)
 		}
 	}
+	close(results)
 
-	err = conn.Close()
 	if err != nil {
-		return nil, fmt.Errorf("cannot close connection: %w", err)
+		return nil, err
 	}
 
-	return newSignedZone(zone, dnsKeyRRSig, dsRRSig, dnsKeyRRSet, dsRRSet), nil
+	return sz, nil
 }
 
 var (
-	ErrRRSigAbsent     = errors.New("RRSig is absent")
+	ErrRecordNotFound = errors.New("record not found")
+	ErrRRSigNotFound  = errors.New("RRSIG not found")
+)
+
+func queryDNSKey(ctx context.Context, dial DialFunc, client *dns.Client,
+	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
+	conn, err := dial(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot dial DNS server: %w", err)
+	}
+	defer conn.Close()
+
+	rrsig, rrset, err = FetchRRSetWithRRSig(
+		client, conn, zone, dns.TypeDNSKEY)
+	switch {
+	case err != nil:
+		return nil, nil, err
+	case len(rrset) == 0:
+		return nil, nil, ErrRecordNotFound
+	case rrsig == nil:
+		return nil, nil, ErrRRSigNotFound
+	}
+	return rrsig, rrset, nil
+}
+
+func queryDS(ctx context.Context, dial DialFunc, client *dns.Client,
+	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
+	conn, err := dial(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot dial DNS server: %w", err)
+	}
+	defer conn.Close()
+
+	rrsig, rrset, err = FetchRRSetWithRRSig(
+		client, conn, zone, dns.TypeDS)
+	switch {
+	case err != nil:
+		return nil, nil, err
+	case len(rrset) == 0:
+		return nil, nil, ErrRecordNotFound
+	case rrsig == nil:
+		return nil, nil, ErrRRSigNotFound
+	}
+	return rrsig, rrset, nil
+}
+
+var (
 	ErrRRSetValidation = errors.New("RRSet validation failed")
 )
 
@@ -129,7 +198,7 @@ var (
 // delegation using the lower level methods in signedZone.
 func (dc delegationChain) verify(rrsig *dns.RRSIG, rrset []dns.RR) error {
 	if rrsig == nil {
-		return ErrRRSigAbsent
+		return ErrRRSigNotFound
 	}
 
 	signedZone := dc[0] // child desired zone
