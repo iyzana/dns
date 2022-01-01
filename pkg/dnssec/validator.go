@@ -20,7 +20,7 @@ func NewValidator(settings Settings) *Validator {
 	}
 }
 
-func (v *Validator) Validate(ctx context.Context,
+func (v *Validator) FetchAndValidate(ctx context.Context,
 	zone string, t uint16) (rrset []dns.RR, err error) {
 	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, t)
 	if err != nil {
