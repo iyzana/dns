@@ -20,8 +20,8 @@ type delegationChain []*signedZone
 // It returns a new delegation chain of signed zones where the
 // first signed zone (index 0) is the child zone and the last signed
 // zone is the root zone.
-func newDelegationChain(ctx context.Context, dial DialFunc,
-	client *dns.Client, zone string) (chain delegationChain, err error) {
+func newDelegationChain(ctx context.Context, exchange Exchange,
+	zone string) (chain delegationChain, err error) {
 	zoneParts := strings.Split(zone, ".")
 	chain = make(delegationChain, len(zoneParts))
 
@@ -37,7 +37,7 @@ func newDelegationChain(ctx context.Context, dial DialFunc,
 		go func(i int, results chan<- result) {
 			result := result{i: i}
 			zoneName := dns.Fqdn(strings.Join(zoneParts[i:], "."))
-			result.signedZone, result.err = queryDelegation(ctx, dial, client, zoneName)
+			result.signedZone, result.err = queryDelegation(ctx, exchange, zoneName)
 			if result.err != nil {
 				result.err = fmt.Errorf("cannot query delegation for %s: %w", zoneName, result.err)
 			}
@@ -65,11 +65,11 @@ func newDelegationChain(ctx context.Context, dial DialFunc,
 // queryDelegation obtains the DNSKEY records and the DS
 // records for a given zone. It does not query the
 // (non existent) DS record for the root zone.
-func queryDelegation(ctx context.Context, dial DialFunc,
-	client *dns.Client, zone string) (sz *signedZone, err error) {
+func queryDelegation(ctx context.Context, exchange Exchange,
+	zone string) (sz *signedZone, err error) {
 	if zone == "." {
 		// Only query DNSKEY since root zone has no DS record.
-		rrsig, rrset, err := queryDNSKey(ctx, dial, client, zone)
+		rrsig, rrset, err := queryDNSKey(ctx, exchange, zone)
 		if err != nil {
 			return nil, fmt.Errorf("cannot fetch DNSKEY records: %w", err)
 		}
@@ -92,23 +92,23 @@ func queryDelegation(ctx context.Context, dial DialFunc,
 	}
 	results := make(chan result)
 
-	go func(ctx context.Context, dial DialFunc, zone string, results chan<- result) {
+	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDNSKEY}
-		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, dial, client, zone)
+		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, exchange, zone)
 		if result.err != nil {
 			result.err = fmt.Errorf("cannot fetch DNSKEY records: %w", result.err)
 		}
 		results <- result
-	}(ctx, dial, zone, results)
+	}(ctx, exchange, zone, results)
 
-	go func(ctx context.Context, dial DialFunc, zone string, results chan<- result) {
+	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDS}
-		result.rrsig, result.rrset, result.err = queryDS(ctx, dial, client, zone)
+		result.rrsig, result.rrset, result.err = queryDS(ctx, exchange, zone)
 		if result.err != nil {
 			result.err = fmt.Errorf("cannot fetch DS records: %w", result.err)
 		}
 		results <- result
-	}(ctx, dial, zone, results)
+	}(ctx, exchange, zone, results)
 
 	sz = &signedZone{
 		zone: zone,
@@ -143,16 +143,9 @@ var (
 	ErrRRSigNotFound  = errors.New("RRSIG not found")
 )
 
-func queryDNSKey(ctx context.Context, dial DialFunc, client *dns.Client,
+func queryDNSKey(ctx context.Context, exchange Exchange,
 	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
-	conn, err := dial(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot dial DNS server: %w", err)
-	}
-	defer conn.Close()
-
-	rrsig, rrset, err = fetchRRSetWithRRSig(
-		client, conn, zone, dns.TypeDNSKEY)
+	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, dns.TypeDNSKEY)
 	switch {
 	case err != nil:
 		return nil, nil, err
@@ -164,16 +157,9 @@ func queryDNSKey(ctx context.Context, dial DialFunc, client *dns.Client,
 	return rrsig, rrset, nil
 }
 
-func queryDS(ctx context.Context, dial DialFunc, client *dns.Client,
+func queryDS(ctx context.Context, exchange Exchange,
 	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
-	conn, err := dial(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot dial DNS server: %w", err)
-	}
-	defer conn.Close()
-
-	rrsig, rrset, err = fetchRRSetWithRRSig(
-		client, conn, zone, dns.TypeDS)
+	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, dns.TypeDS)
 	switch {
 	case err != nil:
 		return nil, nil, err

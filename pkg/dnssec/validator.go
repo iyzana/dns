@@ -8,37 +8,26 @@ import (
 )
 
 type Validator struct {
-	client *dns.Client
-	dial   DialFunc
+	client   *dns.Client
+	exchange Exchange
 }
 
 func NewValidator(settings Settings) *Validator {
 	settings.SetDefaults()
 	return &Validator{
-		client: settings.Client,
-		dial:   settings.Dial,
+		client:   settings.Client,
+		exchange: settings.Exchange,
 	}
 }
 
 func (v *Validator) Validate(ctx context.Context,
 	zone string, t uint16) (rrset []dns.RR, err error) {
-	conn, err := v.dial(ctx)
+	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, t)
 	if err != nil {
-		return nil, fmt.Errorf("cannot dial DNS server: %w", err)
-	}
-
-	rrsig, rrset, err := fetchRRSetWithRRSig(v.client, conn, zone, t)
-	if err != nil {
-		_ = conn.Close()
 		return nil, fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)
 	}
 
-	err = conn.Close()
-	if err != nil {
-		return nil, fmt.Errorf("cannot close connection: %w", err)
-	}
-
-	delegationChain, err := newDelegationChain(ctx, v.dial, v.client, zone)
+	delegationChain, err := newDelegationChain(ctx, v.exchange, zone)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create delegation chain: %w", err)
 	}

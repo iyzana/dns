@@ -8,8 +8,8 @@ import (
 )
 
 type Settings struct {
-	Client *dns.Client
-	Dial   DialFunc
+	Client   *dns.Client
+	Exchange Exchange
 }
 
 func (s *Settings) SetDefaults() {
@@ -17,14 +17,21 @@ func (s *Settings) SetDefaults() {
 		s.Client = &dns.Client{}
 	}
 
-	if s.Dial == nil {
+	if s.Exchange == nil {
+		client := &dns.Client{}
 		dialer := &net.Dialer{}
-		s.Dial = func(ctx context.Context) (conn *dns.Conn, err error) {
+		s.Exchange = func(ctx context.Context, request *dns.Msg) (response *dns.Msg, err error) {
 			netConn, err := dialer.DialContext(ctx, "udp", "1.1.1.1:53")
 			if err != nil {
 				return nil, err
 			}
-			return &dns.Conn{Conn: netConn}, nil
+
+			dnsConn := &dns.Conn{Conn: netConn}
+			response, _, err = client.ExchangeWithConn(request, dnsConn)
+
+			_ = dnsConn.Close()
+
+			return response, err
 		}
 	}
 }

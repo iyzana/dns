@@ -1,15 +1,16 @@
 package dnssec
 
 import (
+	"context"
+
 	"github.com/miekg/dns"
 )
 
-func fetchRRSetWithRRSig(client *dns.Client, conn *dns.Conn,
-	zone string, recordType uint16) (rrsig *dns.RRSIG,
-	rrset []dns.RR, err error) {
+func fetchRRSetWithRRSig(ctx context.Context, exchange Exchange, zone string,
+	recordType uint16) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
 	request := newRequestWithRRSig(zone, recordType)
 
-	response, _, err := client.ExchangeWithConn(request, conn)
+	response, err := exchange(ctx, request)
 	if err != nil {
 		return nil, nil, err
 	}
