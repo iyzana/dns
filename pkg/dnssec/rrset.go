@@ -7,8 +7,8 @@ import (
 )
 
 func fetchRRSetWithRRSig(ctx context.Context, exchange Exchange, zone string,
-	recordType uint16) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
-	request := newRequestWithRRSig(zone, recordType)
+	qClass, qType uint16) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
+	request := newRequestWithRRSig(zone, qClass, qType)
 
 	response, err := exchange(ctx, request)
 	if err != nil {

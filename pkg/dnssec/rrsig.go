@@ -7,10 +7,17 @@ import (
 	"github.com/miekg/dns"
 )
 
-func newRequestWithRRSig(zone string, t uint16) (request *dns.Msg) {
-	request = new(dns.Msg)
-	request.SetQuestion(zone, t)
-	request.RecursionDesired = true
+func newRequestWithRRSig(zone string, qClass, qType uint16) (request *dns.Msg) {
+	request = &dns.Msg{
+		Question: []dns.Question{{
+			Name:   zone,
+			Qtype:  qType,
+			Qclass: qClass,
+		}},
+		MsgHdr: dns.MsgHdr{
+			RecursionDesired: true,
+		},
+	}
 	const maxUDPSize = 4096
 	const doEdns0 = true
 	request.SetEdns0(maxUDPSize, doEdns0)

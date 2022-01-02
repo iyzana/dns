@@ -21,7 +21,7 @@ type delegationChain []*signedZone
 // first signed zone (index 0) is the child zone and the last signed
 // zone is the root zone.
 func newDelegationChain(ctx context.Context, exchange Exchange,
-	zone string) (chain delegationChain, err error) {
+	zone string, qClass uint16) (chain delegationChain, err error) {
 	zoneParts := strings.Split(zone, ".")
 	chain = make(delegationChain, len(zoneParts))
 
@@ -37,7 +37,7 @@ func newDelegationChain(ctx context.Context, exchange Exchange,
 		go func(i int, results chan<- result) {
 			result := result{i: i}
 			zoneName := dns.Fqdn(strings.Join(zoneParts[i:], "."))
-			result.signedZone, result.err = queryDelegation(ctx, exchange, zoneName)
+			result.signedZone, result.err = queryDelegation(ctx, exchange, zoneName, qClass)
 			if result.err != nil {
 				result.err = fmt.Errorf("cannot query delegation for %s: %w", zoneName, result.err)
 			}
@@ -66,10 +66,10 @@ func newDelegationChain(ctx context.Context, exchange Exchange,
 // records for a given zone. It does not query the
 // (non existent) DS record for the root zone.
 func queryDelegation(ctx context.Context, exchange Exchange,
-	zone string) (sz *signedZone, err error) {
+	zone string, qClass uint16) (sz *signedZone, err error) {
 	if zone == "." {
 		// Only query DNSKEY since root zone has no DS record.
-		rrsig, rrset, err := queryDNSKey(ctx, exchange, zone)
+		rrsig, rrset, err := queryDNSKey(ctx, exchange, zone, qClass)
 		if err != nil {
 			return nil, fmt.Errorf("cannot fetch DNSKEY records: %w", err)
 		}
@@ -94,7 +94,7 @@ func queryDelegation(ctx context.Context, exchange Exchange,
 
 	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDNSKEY}
-		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, exchange, zone)
+		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, exchange, zone, qClass)
 		if result.err != nil {
 			result.err = fmt.Errorf("cannot fetch DNSKEY records: %w", result.err)
 		}
@@ -103,7 +103,7 @@ func queryDelegation(ctx context.Context, exchange Exchange,
 
 	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDS}
-		result.rrsig, result.rrset, result.err = queryDS(ctx, exchange, zone)
+		result.rrsig, result.rrset, result.err = queryDS(ctx, exchange, zone, qClass)
 		if result.err != nil {
 			result.err = fmt.Errorf("cannot fetch DS records: %w", result.err)
 		}
@@ -144,8 +144,9 @@ var (
 )
 
 func queryDNSKey(ctx context.Context, exchange Exchange,
-	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
-	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, dns.TypeDNSKEY)
+	zone string, qClass uint16) (rrsig *dns.RRSIG,
+	rrset []dns.RR, err error) {
+	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, qClass, dns.TypeDNSKEY)
 	switch {
 	case err != nil:
 		return nil, nil, err
@@ -158,8 +159,9 @@ func queryDNSKey(ctx context.Context, exchange Exchange,
 }
 
 func queryDS(ctx context.Context, exchange Exchange,
-	zone string) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
-	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, dns.TypeDS)
+	zone string, qClass uint16) (rrsig *dns.RRSIG,
+	rrset []dns.RR, err error) {
+	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, qClass, dns.TypeDS)
 	switch {
 	case err != nil:
 		return nil, nil, err

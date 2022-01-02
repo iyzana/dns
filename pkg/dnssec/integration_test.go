@@ -73,7 +73,7 @@ func Test_Validate(t *testing.T) {
 
 			validator := NewValidator(testCase.settings)
 
-			rrset, err := validator.Validate(ctx, testCase.zone, testCase.dnsType)
+			rrset, err := validator.FetchAndValidate(ctx, testCase.zone, dns.ClassINET, testCase.dnsType)
 
 			// Remove TTL fields from rrset
 			for i := range rrset {
@@ -96,6 +96,6 @@ func Benchmark_Validate(b *testing.B) {
 	validator := NewValidator(Settings{})
 
 	for i := 0; i < b.N; i++ {
-		_, _ = validator.Validate(ctx, zone, dnsType)
+		_, _ = validator.FetchAndValidate(ctx, zone, dns.ClassINET, dnsType)
 	}
 }

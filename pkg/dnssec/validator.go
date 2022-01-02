@@ -21,13 +21,13 @@ func NewValidator(settings Settings) *Validator {
 }
 
 func (v *Validator) FetchAndValidate(ctx context.Context,
-	zone string, t uint16) (rrset []dns.RR, err error) {
-	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, t)
+	zone string, qClass, qType uint16) (rrset []dns.RR, err error) {
+	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, qClass, qType)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)
 	}
 
-	delegationChain, err := newDelegationChain(ctx, v.exchange, zone)
+	delegationChain, err := newDelegationChain(ctx, v.exchange, zone, qClass)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create delegation chain: %w", err)
 	}

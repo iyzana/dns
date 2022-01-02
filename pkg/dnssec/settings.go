@@ -8,11 +8,17 @@ import (
 )
 
 type Settings struct {
+	Enabled  *bool
 	Client   *dns.Client
 	Exchange Exchange
 }
 
 func (s *Settings) SetDefaults() {
+	if s.Enabled == nil {
+		enabled := true
+		s.Enabled = &enabled
+	}
+
 	if s.Client == nil {
 		s.Client = &dns.Client{}
 	}
