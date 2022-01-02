@@ -7,20 +7,20 @@ import (
 	"github.com/miekg/dns"
 )
 
-type Validator struct {
+type validator struct {
 	client   *dns.Client
 	exchange Exchange
 }
 
-func NewValidator(settings Settings) *Validator {
+func newValidator(settings Settings) *validator {
 	settings.SetDefaults()
-	return &Validator{
+	return &validator{
 		client:   settings.Client,
 		exchange: settings.Exchange,
 	}
 }
 
-func (v *Validator) FetchAndValidate(ctx context.Context,
+func (v *validator) fetchAndValidateZone(ctx context.Context,
 	zone string, qClass, qType uint16) (rrset []dns.RR, err error) {
 	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, qClass, qType)
 	if err != nil {

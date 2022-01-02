@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Validate(t *testing.T) {
+func Test_validator_fetchAndValidateZone(t *testing.T) {
 	t.Parallel()
 
 	const validZone = "qqq.ninja."
@@ -71,9 +71,9 @@ func Test_Validate(t *testing.T) {
 			ctx, cancel := context.WithDeadline(context.Background(), deadline)
 			defer cancel()
 
-			validator := NewValidator(testCase.settings)
+			validator := newValidator(testCase.settings)
 
-			rrset, err := validator.FetchAndValidate(ctx, testCase.zone, dns.ClassINET, testCase.dnsType)
+			rrset, err := validator.fetchAndValidateZone(ctx, testCase.zone, dns.ClassINET, testCase.dnsType)
 
 			// Remove TTL fields from rrset
 			for i := range rrset {
@@ -89,13 +89,13 @@ func Test_Validate(t *testing.T) {
 	}
 }
 
-func Benchmark_Validate(b *testing.B) {
+func Benchmark_validator_fetchAndValidateZone(b *testing.B) {
 	ctx := context.Background()
 	const zone = "qqq.ninja."
 	const dnsType = dns.TypeA
-	validator := NewValidator(Settings{})
+	validator := newValidator(Settings{})
 
 	for i := 0; i < b.N; i++ {
-		_, _ = validator.FetchAndValidate(ctx, zone, dns.ClassINET, dnsType)
+		_, _ = validator.fetchAndValidateZone(ctx, zone, dns.ClassINET, dnsType)
 	}
 }
