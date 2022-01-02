@@ -10,6 +10,7 @@ import (
 	"github.com/qdm12/dns/internal/settings/defaults"
 	"github.com/qdm12/dns/pkg/cache"
 	cachenoop "github.com/qdm12/dns/pkg/cache/noop"
+	"github.com/qdm12/dns/pkg/dnssec"
 	"github.com/qdm12/dns/pkg/dot/metrics"
 	metricsnoop "github.com/qdm12/dns/pkg/dot/metrics/noop"
 	"github.com/qdm12/dns/pkg/filter"
@@ -26,6 +27,7 @@ import (
 type ServerSettings struct {
 	Resolver      ResolverSettings
 	Address       string
+	DNSSEC        dnssec.Settings
 	LogMiddleware logmiddleware.Settings
 	// Cache is the cache to use in the server.
 	// It defaults to a No-Op cache implementation with
@@ -61,6 +63,7 @@ type ResolverSettings struct {
 func (s *ServerSettings) SetDefaults() {
 	s.Resolver.SetDefaults()
 	s.LogMiddleware.SetDefaults()
+	s.DNSSEC.SetDefaults()
 
 	s.Address = defaults.String(s.Address, ":53")
 
@@ -109,6 +112,11 @@ func (s ServerSettings) Validate() (err error) {
 	err = s.Resolver.Validate()
 	if err != nil {
 		return fmt.Errorf("failed validating resolver settings: %w", err)
+	}
+
+	err = s.DNSSEC.Validate()
+	if err != nil {
+		return fmt.Errorf("failed validating DNSSEC settings: %w", err)
 	}
 
 	const defaultUDPPort = 53

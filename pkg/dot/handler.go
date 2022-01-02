@@ -6,6 +6,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/qdm12/dns/internal/server"
+	"github.com/qdm12/dns/pkg/dnssec"
 )
 
 func newDNSHandler(ctx context.Context, settings ServerSettings) (
@@ -16,6 +17,7 @@ func newDNSHandler(ctx context.Context, settings ServerSettings) (
 	}
 
 	exchange := server.NewExchange("DoT", dial, settings.Logger)
+	exchange = dnssec.WrapDNSExchange(exchange, settings.DNSSEC)
 
 	return server.New(ctx, exchange, settings.Filter,
 		settings.Cache, settings.Logger), nil
