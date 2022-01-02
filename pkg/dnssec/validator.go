@@ -46,6 +46,11 @@ func (v *validator) fetchAndValidateZone(ctx context.Context,
 		return nil, fmt.Errorf("cannot fetch desired RRSet and RRSig: %w", err)
 	}
 
+	if rrsig == nil {
+		// Let unsigned zones thorugh :(
+		return rrset, nil
+	}
+
 	delegationChain, err := newDelegationChain(ctx, v.exchange, zone, qClass)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create delegation chain: %w", err)
