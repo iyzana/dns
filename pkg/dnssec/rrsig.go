@@ -8,16 +8,9 @@ import (
 )
 
 func newRequestWithRRSig(zone string, qClass, qType uint16) (request *dns.Msg) {
-	request = &dns.Msg{
-		Question: []dns.Question{{
-			Name:   zone,
-			Qtype:  qType,
-			Qclass: qClass,
-		}},
-		MsgHdr: dns.MsgHdr{
-			RecursionDesired: true,
-		},
-	}
+	request = new(dns.Msg).SetQuestion(zone, qType)
+	request.Question[0].Qclass = qClass
+	request.RecursionDesired = true
 	const maxUDPSize = 4096
 	const doEdns0 = true
 	request.SetEdns0(maxUDPSize, doEdns0)
