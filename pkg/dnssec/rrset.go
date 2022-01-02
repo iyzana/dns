@@ -2,8 +2,14 @@ package dnssec
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/miekg/dns"
+)
+
+var (
+	ErrValidationFailedUpstream = errors.New("DNSSEC validation might had failed upstream")
 )
 
 func fetchRRSetWithRRSig(ctx context.Context, exchange Exchange, zone string,
@@ -13,6 +19,12 @@ func fetchRRSetWithRRSig(ctx context.Context, exchange Exchange, zone string,
 	response, err := exchange(ctx, request)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if response.Rcode == dns.RcodeServerFailure {
+		return nil, nil, fmt.Errorf("for %s %s %s: %w",
+			zone, dns.ClassToString[qClass], dns.TypeToString[qType],
+			ErrValidationFailedUpstream)
 	}
 
 	rrsig, rrset = extractRRSIGAndRRSet(response)
@@ -30,5 +42,10 @@ func extractRRSIGAndRRSet(response *dns.Msg) (rrsig *dns.RRSIG, rrset []dns.RR) 
 		}
 		rrset = append(rrset, rr)
 	}
+
+	if len(rrset) == 0 {
+		rrset = nil
+	}
+
 	return rrsig, rrset
 }

@@ -2,7 +2,6 @@ package dnssec
 
 import (
 	"context"
-	"regexp"
 	"testing"
 	"time"
 
@@ -11,57 +10,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func getRRSetWithoutValidation(t *testing.T, zone string,
+	qType, qClass uint16) (rrset []dns.RR) {
+	t.Helper()
+
+	request := new(dns.Msg)
+	request.SetQuestion(zone, qType)
+	request.Question[0].Qclass = qClass
+
+	response, _, err := new(dns.Client).Exchange(request, "1.1.1.1:53")
+	require.NoError(t, err)
+
+	// Clear TTL since they are not predicatable
+	for _, rr := range response.Answer {
+		rr.Header().Ttl = 0
+	}
+
+	return response.Answer
+}
+
 func Test_validator_fetchAndValidateZone(t *testing.T) {
 	t.Parallel()
 
-	const validZone = "qqq.ninja."
-	request := new(dns.Msg).SetQuestion(validZone, dns.TypeA)
-	response, _, err := new(dns.Client).Exchange(request, "1.1.1.1:53")
-	require.NoError(t, err)
-	validZoneRRSet := response.Answer
-	for i := range validZoneRRSet {
-		validZoneRRSet[i].Header().Ttl = 0
-	}
-
 	testCases := map[string]struct {
-		zone        string
-		dnsType     uint16
-		settings    Settings
-		rrset       []dns.RR
-		errWrapped  error
-		errMsgRegex string
+		zone       string
+		dnsType    uint16
+		settings   Settings
+		rrset      []dns.RR
+		errWrapped error
+		errMessage string
 	}{
 		"valid DNSSEC": {
 			zone:    "qqq.ninja.",
 			dnsType: dns.TypeA,
-			rrset:   validZoneRRSet,
+			rrset:   getRRSetWithoutValidation(t, "qqq.ninja.", dns.TypeA, dns.ClassINET),
 		},
 		"no DNSSEC": {
-			zone:       "github.com.",
-			dnsType:    dns.TypeA,
-			errWrapped: ErrRecordNotFound,
-			errMsgRegex: "cannot create delegation chain: " +
-				"cannot query delegation for github\\.com\\.: " +
-				"cannot fetch (DNSKEY|DS) records: " +
-				"record not found",
+			zone:    "github.com.",
+			dnsType: dns.TypeA,
+			rrset:   getRRSetWithoutValidation(t, "github.com.", dns.TypeA, dns.ClassINET),
 		},
-		"bad DNSSEC": {
-			zone:       "www.dnssec-failed.org.",
+		"bad DNSSEC already failed by upstream": {
+			zone:       "dnssec-failed.org.",
 			dnsType:    dns.TypeA,
-			errWrapped: ErrRecordNotFound,
-			errMsgRegex: "cannot create delegation chain: " +
-				"cannot query delegation for (www\\.|)dnssec-failed\\.org\\.: " +
-				"cannot fetch (DNSKEY|DS) records: " +
-				"record not found",
+			errWrapped: ErrValidationFailedUpstream,
+			errMessage: "cannot fetch desired RRSet and RRSig: " +
+				"for dnssec-failed.org. IN A: " +
+				"DNSSEC validation might had failed upstream",
 		},
 	}
 	for name, testCase := range testCases {
 		testCase := testCase
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-
-			errMsgRegex, err := regexp.Compile(testCase.errMsgRegex)
-			require.NoError(t, err)
 
 			deadline, ok := t.Deadline()
 			if !ok {
@@ -81,9 +82,9 @@ func Test_validator_fetchAndValidateZone(t *testing.T) {
 			}
 
 			assert.Equal(t, testCase.rrset, rrset)
-			assert.ErrorIs(t, err, testCase.errWrapped)
+			require.ErrorIs(t, err, testCase.errWrapped)
 			if testCase.errWrapped != nil {
-				assert.Regexp(t, errMsgRegex, err.Error())
+				assert.EqualError(t, err, testCase.errMessage)
 			}
 		})
 	}
