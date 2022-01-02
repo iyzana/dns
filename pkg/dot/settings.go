@@ -61,10 +61,6 @@ type ResolverSettings struct {
 }
 
 func (s *ServerSettings) SetDefaults() {
-	s.Resolver.SetDefaults()
-	s.LogMiddleware.SetDefaults()
-	s.DNSSEC.SetDefaults()
-
 	s.Address = defaults.String(s.Address, ":53")
 
 	if s.Filter == nil {
@@ -83,6 +79,15 @@ func (s *ServerSettings) SetDefaults() {
 		// no-op metrics for no-op cache
 		s.Cache = cachenoop.New(cachenoop.Settings{})
 	}
+
+	// Propagate downstream
+	if s.DNSSEC.Cache == nil {
+		s.DNSSEC.Cache = s.Cache
+	}
+
+	s.Resolver.SetDefaults()
+	s.LogMiddleware.SetDefaults()
+	s.DNSSEC.SetDefaults()
 }
 
 func (s *ResolverSettings) SetDefaults() {
