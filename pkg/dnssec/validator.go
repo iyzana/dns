@@ -8,7 +8,6 @@ import (
 )
 
 type validator struct {
-	client   *dns.Client
 	exchange Exchange
 }
 
@@ -18,7 +17,6 @@ func newValidator(settings Settings) *validator {
 	exchange := wrapExchangeWithCache(settings.Exchange, settings.Cache)
 
 	return &validator{
-		client:   settings.Client,
 		exchange: exchange,
 	}
 }

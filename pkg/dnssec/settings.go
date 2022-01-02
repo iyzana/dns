@@ -11,7 +11,6 @@ import (
 
 type Settings struct {
 	Enabled  *bool
-	Client   *dns.Client
 	Exchange Exchange
 	// Cache is an optional request <-> response cache
 	// to use. It defaults to a no-op implementation.
@@ -22,10 +21,6 @@ func (s *Settings) SetDefaults() {
 	if s.Enabled == nil {
 		enabled := true
 		s.Enabled = &enabled
-	}
-
-	if s.Client == nil {
-		s.Client = &dns.Client{}
 	}
 
 	if s.Exchange == nil {
