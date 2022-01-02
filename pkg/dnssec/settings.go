@@ -5,12 +5,17 @@ import (
 	"net"
 
 	"github.com/miekg/dns"
+	"github.com/qdm12/dns/pkg/cache"
+	"github.com/qdm12/dns/pkg/cache/noop"
 )
 
 type Settings struct {
 	Enabled  *bool
 	Client   *dns.Client
 	Exchange Exchange
+	// Cache is an optional request <-> response cache
+	// to use. It defaults to a no-op implementation.
+	Cache cache.Interface
 }
 
 func (s *Settings) SetDefaults() {
@@ -39,6 +44,11 @@ func (s *Settings) SetDefaults() {
 
 			return response, err
 		}
+	}
+
+	if s.Cache == nil {
+		// TODO pass down metrics?
+		s.Cache = noop.New(noop.Settings{})
 	}
 }
 

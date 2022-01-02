@@ -14,9 +14,12 @@ type validator struct {
 
 func newValidator(settings Settings) *validator {
 	settings.SetDefaults()
+
+	exchange := wrapExchangeWithCache(settings.Exchange, settings.Cache)
+
 	return &validator{
 		client:   settings.Client,
-		exchange: settings.Exchange,
+		exchange: exchange,
 	}
 }
 
@@ -47,7 +50,7 @@ func (v *validator) fetchAndValidateZone(ctx context.Context,
 	}
 
 	if rrsig == nil {
-		// Let unsigned zones thorugh :(
+		// Let unsigned zones through :(
 		return rrset, nil
 	}
 
