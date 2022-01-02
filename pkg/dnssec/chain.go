@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+	"github.com/qdm12/dns/internal/server"
 )
 
 // delegationChain is the DNSSEC chain of trust from the
@@ -20,7 +21,7 @@ type delegationChain []*signedZone
 // It returns a new delegation chain of signed zones where the
 // first signed zone (index 0) is the child zone and the last signed
 // zone is the root zone.
-func newDelegationChain(ctx context.Context, exchange Exchange,
+func newDelegationChain(ctx context.Context, exchange server.Exchange,
 	zone string, qClass uint16) (chain delegationChain, err error) {
 	zoneParts := strings.Split(zone, ".")
 	chain = make(delegationChain, len(zoneParts))
@@ -65,7 +66,7 @@ func newDelegationChain(ctx context.Context, exchange Exchange,
 // queryDelegation obtains the DNSKEY records and the DS
 // records for a given zone. It does not query the
 // (non existent) DS record for the root zone.
-func queryDelegation(ctx context.Context, exchange Exchange,
+func queryDelegation(ctx context.Context, exchange server.Exchange,
 	zone string, qClass uint16) (sz *signedZone, err error) {
 	if zone == "." {
 		// Only query DNSKEY since root zone has no DS record.
@@ -92,7 +93,7 @@ func queryDelegation(ctx context.Context, exchange Exchange,
 	}
 	results := make(chan result)
 
-	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
+	go func(ctx context.Context, exchange server.Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDNSKEY}
 		result.rrsig, result.rrset, result.err = queryDNSKey(ctx, exchange, zone, qClass)
 		if result.err != nil {
@@ -101,7 +102,7 @@ func queryDelegation(ctx context.Context, exchange Exchange,
 		results <- result
 	}(ctx, exchange, zone, results)
 
-	go func(ctx context.Context, exchange Exchange, zone string, results chan<- result) {
+	go func(ctx context.Context, exchange server.Exchange, zone string, results chan<- result) {
 		result := result{t: dns.TypeDS}
 		result.rrsig, result.rrset, result.err = queryDS(ctx, exchange, zone, qClass)
 		if result.err != nil {
@@ -143,7 +144,7 @@ var (
 	ErrRRSigNotFound  = errors.New("RRSIG not found")
 )
 
-func queryDNSKey(ctx context.Context, exchange Exchange,
+func queryDNSKey(ctx context.Context, exchange server.Exchange,
 	zone string, qClass uint16) (rrsig *dns.RRSIG,
 	rrset []dns.RR, err error) {
 	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, qClass, dns.TypeDNSKEY)
@@ -158,7 +159,7 @@ func queryDNSKey(ctx context.Context, exchange Exchange,
 	return rrsig, rrset, nil
 }
 
-func queryDS(ctx context.Context, exchange Exchange,
+func queryDS(ctx context.Context, exchange server.Exchange,
 	zone string, qClass uint16) (rrsig *dns.RRSIG,
 	rrset []dns.RR, err error) {
 	rrsig, rrset, err = fetchRRSetWithRRSig(ctx, exchange, zone, qClass, dns.TypeDS)

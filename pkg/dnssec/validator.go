@@ -5,17 +5,14 @@ import (
 	"fmt"
 
 	"github.com/miekg/dns"
+	"github.com/qdm12/dns/internal/server"
 )
 
 type validator struct {
-	exchange Exchange
+	exchange server.Exchange
 }
 
-func newValidator(settings Settings) *validator {
-	settings.SetDefaults()
-
-	exchange := wrapExchangeWithCache(settings.Exchange, settings.Cache)
-
+func newValidator(exchange server.Exchange) *validator {
 	return &validator{
 		exchange: exchange,
 	}

@@ -63,13 +63,9 @@ func Test_ServerSettings_SetDefaults(t *testing.T) {
 		},
 		DNSSEC: dnssec.Settings{
 			Enabled: boolPtr(true),
-			Cache:   cache,
 		},
 		Address: ":53",
 	}
-
-	// Clear exchange since it's not predictable from here
-	s.DNSSEC.Exchange = nil
 
 	assert.Equal(t, expectedSettings, s)
 }

@@ -6,13 +6,14 @@ import (
 	"fmt"
 
 	"github.com/miekg/dns"
+	"github.com/qdm12/dns/internal/server"
 )
 
 var (
 	ErrValidationFailedUpstream = errors.New("DNSSEC validation might had failed upstream")
 )
 
-func fetchRRSetWithRRSig(ctx context.Context, exchange Exchange, zone string,
+func fetchRRSetWithRRSig(ctx context.Context, exchange server.Exchange, zone string,
 	qClass, qType uint16) (rrsig *dns.RRSIG, rrset []dns.RR, err error) {
 	request := newRequestWithRRSig(zone, qClass, qType)
 

@@ -84,11 +84,6 @@ func (s *ServerSettings) SetDefaults() {
 		s.Cache = cachenoop.New(cachenoop.Settings{})
 	}
 
-	// Propagate downstream
-	if s.DNSSEC.Cache == nil {
-		s.DNSSEC.Cache = s.Cache
-	}
-
 	s.Resolver.SetDefaults()
 	s.LogMiddleware.SetDefaults()
 	s.DNSSEC.SetDefaults()
