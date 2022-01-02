@@ -20,6 +20,26 @@ func newValidator(settings Settings) *validator {
 	}
 }
 
+func (v *validator) exchangeAndValidate(ctx context.Context,
+	request *dns.Msg) (response *dns.Msg, err error) {
+	response = new(dns.Msg)
+	response.Answer = make([]dns.RR, 0, len(request.Question))
+
+	for _, question := range request.Question {
+		fmt.Println("Validating for ", question.Name, question.Qclass, question.Qtype)
+		rrset, err := v.fetchAndValidateZone(ctx, question.Name, question.Qclass, question.Qtype)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate %s %s %s: %w",
+				question.Name, dns.ClassToString[question.Qclass],
+				dns.TypeToString[question.Qtype], err)
+		}
+
+		response.Answer = append(response.Answer, rrset...)
+	}
+
+	return response, nil
+}
+
 func (v *validator) fetchAndValidateZone(ctx context.Context,
 	zone string, qClass, qType uint16) (rrset []dns.RR, err error) {
 	rrsig, rrset, err := fetchRRSetWithRRSig(ctx, v.exchange, zone, qClass, qType)
