@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cache "github.com/qdm12/dns/pkg/cache/noop"
+	"github.com/qdm12/dns/pkg/dnssec"
 	metrics "github.com/qdm12/dns/pkg/doh/metrics/noop"
 	"github.com/qdm12/dns/pkg/filter/mapfilter"
 	log "github.com/qdm12/dns/pkg/log/noop"
@@ -60,8 +61,16 @@ func Test_ServerSettings_SetDefaults(t *testing.T) {
 			Warner:  logger,
 			Metrics: metrics,
 		},
+		DNSSEC: dnssec.Settings{
+			Enabled: boolPtr(true),
+			Cache:   cache,
+		},
 		Address: ":53",
 	}
+
+	// Clear exchange since it's not predictable from here
+	s.DNSSEC.Exchange = nil
+
 	assert.Equal(t, expectedSettings, s)
 }
 
