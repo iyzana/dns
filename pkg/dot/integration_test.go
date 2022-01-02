@@ -12,9 +12,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/qdm12/dns/internal/mockhelp"
+	"github.com/qdm12/dns/pkg/dnssec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func boolPtr(b bool) *bool { return &b }
 
 func Test_Resolver(t *testing.T) {
 	t.Parallel()
@@ -200,6 +203,9 @@ func Test_Server_Mocks(t *testing.T) {
 		Metrics: metrics,
 		Resolver: ResolverSettings{
 			Metrics: metrics,
+		},
+		DNSSEC: dnssec.Settings{
+			Enabled: boolPtr(false),
 		},
 	})
 	require.NoError(t, err)
