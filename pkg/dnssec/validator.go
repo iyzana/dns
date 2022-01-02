@@ -26,7 +26,6 @@ func (v *validator) exchangeAndValidate(ctx context.Context,
 	response.Answer = make([]dns.RR, 0, len(request.Question))
 
 	for _, question := range request.Question {
-		fmt.Println("Validating for ", question.Name, question.Qclass, question.Qtype)
 		rrset, err := v.fetchAndValidateZone(ctx, question.Name, question.Qclass, question.Qtype)
 		if err != nil {
 			return nil, fmt.Errorf("failed to validate %s %s %s: %w",
